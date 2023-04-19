@@ -5184,7 +5184,6 @@ ext4_ext_shift_extents(struct inode *inode, handle_t *handle,
 	 * and it is decreased till we reach start.
 	 */
 again:
-	ret = 0;
 	if (SHIFT == SHIFT_LEFT)
 		iterator = &start;
 	else
@@ -5228,21 +5227,14 @@ again:
 					ext4_ext_get_actual_len(extent);
 		} else {
 			extent = EXT_FIRST_EXTENT(path[depth].p_hdr);
-			if (le32_to_cpu(extent->ee_block) > start)
+			if (le32_to_cpu(extent->ee_block) > 0)
 				*iterator = le32_to_cpu(extent->ee_block) - 1;
-			else if (le32_to_cpu(extent->ee_block) == start)
+			else
+				/* Beginning is reached, end of the loop */
 				iterator = NULL;
-			else {
-				extent = EXT_LAST_EXTENT(path[depth].p_hdr);
-				while (le32_to_cpu(extent->ee_block) >= start)
-					extent--;
-
-				if (extent == EXT_LAST_EXTENT(path[depth].p_hdr))
-					break;
-
+			/* Update path extent in case we need to stop */
+			while (le32_to_cpu(extent->ee_block) < start)
 				extent++;
-				iterator = NULL;
-			}
 			path[depth].p_ext = extent;
 		}
 		ret = ext4_ext_shift_path_extents(path, shift, inode,

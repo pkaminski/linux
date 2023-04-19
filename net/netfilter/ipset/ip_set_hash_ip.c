@@ -151,16 +151,18 @@ hash_ip4_uadt(struct ip_set *set, struct nlattr *tb[],
 	if (((u64)ip_to - ip + 1) >> (32 - h->netmask) > IPSET_MAX_RANGE)
 		return -ERANGE;
 
-	if (retried)
+	if (retried) {
 		ip = ntohl(h->next.ip);
-	for (; ip <= ip_to;) {
 		e.ip = htonl(ip);
+	}
+	for (; ip <= ip_to;) {
 		ret = adtfn(set, &e, &ext, &ext, flags);
 		if (ret && !ip_set_eexist(ret, flags))
 			return ret;
 
 		ip += hosts;
-		if (ip == 0)
+		e.ip = htonl(ip);
+		if (e.ip == 0)
 			return 0;
 
 		ret = 0;

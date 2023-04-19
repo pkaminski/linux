@@ -719,15 +719,13 @@ sun8i_a83t_mipi_csi2_resources_setup(struct sun8i_a83t_mipi_csi2_device *csi2_de
 	csi2_dev->clock_mipi = devm_clk_get(dev, "mipi");
 	if (IS_ERR(csi2_dev->clock_mipi)) {
 		dev_err(dev, "failed to acquire mipi clock\n");
-		ret = PTR_ERR(csi2_dev->clock_mipi);
-		goto error_clock_rate_exclusive;
+		return PTR_ERR(csi2_dev->clock_mipi);
 	}
 
 	csi2_dev->clock_misc = devm_clk_get(dev, "misc");
 	if (IS_ERR(csi2_dev->clock_misc)) {
 		dev_err(dev, "failed to acquire misc clock\n");
-		ret = PTR_ERR(csi2_dev->clock_misc);
-		goto error_clock_rate_exclusive;
+		return PTR_ERR(csi2_dev->clock_misc);
 	}
 
 	/* Reset */
@@ -735,8 +733,7 @@ sun8i_a83t_mipi_csi2_resources_setup(struct sun8i_a83t_mipi_csi2_device *csi2_de
 	csi2_dev->reset = devm_reset_control_get_shared(dev, NULL);
 	if (IS_ERR(csi2_dev->reset)) {
 		dev_err(dev, "failed to get reset controller\n");
-		ret = PTR_ERR(csi2_dev->reset);
-		goto error_clock_rate_exclusive;
+		return PTR_ERR(csi2_dev->reset);
 	}
 
 	/* D-PHY */
@@ -744,7 +741,7 @@ sun8i_a83t_mipi_csi2_resources_setup(struct sun8i_a83t_mipi_csi2_device *csi2_de
 	ret = sun8i_a83t_dphy_register(csi2_dev);
 	if (ret) {
 		dev_err(dev, "failed to initialize MIPI D-PHY\n");
-		goto error_clock_rate_exclusive;
+		return ret;
 	}
 
 	/* Runtime PM */
@@ -752,11 +749,6 @@ sun8i_a83t_mipi_csi2_resources_setup(struct sun8i_a83t_mipi_csi2_device *csi2_de
 	pm_runtime_enable(dev);
 
 	return 0;
-
-error_clock_rate_exclusive:
-	clk_rate_exclusive_put(csi2_dev->clock_mod);
-
-	return ret;
 }
 
 static void
@@ -786,14 +778,9 @@ static int sun8i_a83t_mipi_csi2_probe(struct platform_device *platform_dev)
 
 	ret = sun8i_a83t_mipi_csi2_bridge_setup(csi2_dev);
 	if (ret)
-		goto error_resources;
+		return ret;
 
 	return 0;
-
-error_resources:
-	sun8i_a83t_mipi_csi2_resources_cleanup(csi2_dev);
-
-	return ret;
 }
 
 static int sun8i_a83t_mipi_csi2_remove(struct platform_device *platform_dev)

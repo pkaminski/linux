@@ -2201,8 +2201,7 @@ amdgpu_pci_remove(struct pci_dev *pdev)
 		pm_runtime_forbid(dev->dev);
 	}
 
-	if (adev->ip_versions[MP1_HWIP][0] == IP_VERSION(13, 0, 2) &&
-	    !amdgpu_sriov_vf(adev)) {
+	if (adev->ip_versions[MP1_HWIP][0] == IP_VERSION(13, 0, 2)) {
 		bool need_to_reset_gpu = false;
 
 		if (adev->gmc.xgmi.num_physical_nodes > 1) {

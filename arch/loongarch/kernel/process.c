@@ -129,7 +129,7 @@ int copy_thread(struct task_struct *p, const struct kernel_clone_args *args)
 	unsigned long clone_flags = args->flags;
 	struct pt_regs *childregs, *regs = current_pt_regs();
 
-	childksp = (unsigned long)task_stack_page(p) + THREAD_SIZE;
+	childksp = (unsigned long)task_stack_page(p) + THREAD_SIZE - 32;
 
 	/* set up new TSS. */
 	childregs = (struct pt_regs *) childksp - 1;
@@ -152,7 +152,7 @@ int copy_thread(struct task_struct *p, const struct kernel_clone_args *args)
 		childregs->csr_crmd = p->thread.csr_crmd;
 		childregs->csr_prmd = p->thread.csr_prmd;
 		childregs->csr_ecfg = p->thread.csr_ecfg;
-		goto out;
+		return 0;
 	}
 
 	/* user thread */
@@ -171,14 +171,13 @@ int copy_thread(struct task_struct *p, const struct kernel_clone_args *args)
 	 */
 	childregs->csr_euen = 0;
 
-	if (clone_flags & CLONE_SETTLS)
-		childregs->regs[2] = tls;
-
-out:
 	clear_tsk_thread_flag(p, TIF_USEDFPU);
 	clear_tsk_thread_flag(p, TIF_USEDSIMD);
 	clear_tsk_thread_flag(p, TIF_LSX_CTX_LIVE);
 	clear_tsk_thread_flag(p, TIF_LASX_CTX_LIVE);
+
+	if (clone_flags & CLONE_SETTLS)
+		childregs->regs[2] = tls;
 
 	return 0;
 }
@@ -237,7 +236,7 @@ bool in_task_stack(unsigned long stack, struct task_struct *task,
 			struct stack_info *info)
 {
 	unsigned long begin = (unsigned long)task_stack_page(task);
-	unsigned long end = begin + THREAD_SIZE;
+	unsigned long end = begin + THREAD_SIZE - 32;
 
 	if (stack < begin || stack >= end)
 		return false;

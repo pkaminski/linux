@@ -172,7 +172,6 @@ void psp_ta_free_shared_buf(struct ta_mem_context *mem_ctx)
 {
 	amdgpu_bo_free_kernel(&mem_ctx->shared_bo, &mem_ctx->shared_mc_addr,
 			      &mem_ctx->shared_buf);
-	mem_ctx->shared_bo = NULL;
 }
 
 static void psp_free_shared_bufs(struct psp_context *psp)
@@ -183,7 +182,6 @@ static void psp_free_shared_bufs(struct psp_context *psp)
 	/* free TMR memory buffer */
 	pptr = amdgpu_sriov_vf(psp->adev) ? &tmr_buf : NULL;
 	amdgpu_bo_free_kernel(&psp->tmr_bo, &psp->tmr_mc_addr, pptr);
-	psp->tmr_bo = NULL;
 
 	/* free xgmi shared memory */
 	psp_ta_free_shared_buf(&psp->xgmi_context.context.mem_context);
@@ -745,7 +743,7 @@ static int psp_load_toc(struct psp_context *psp,
 /* Set up Trusted Memory Region */
 static int psp_tmr_init(struct psp_context *psp)
 {
-	int ret = 0;
+	int ret;
 	int tmr_size;
 	void *tmr_buf;
 	void **pptr;
@@ -772,12 +770,10 @@ static int psp_tmr_init(struct psp_context *psp)
 		}
 	}
 
-	if (!psp->tmr_bo) {
-		pptr = amdgpu_sriov_vf(psp->adev) ? &tmr_buf : NULL;
-		ret = amdgpu_bo_create_kernel(psp->adev, tmr_size, PSP_TMR_ALIGNMENT,
-					      AMDGPU_GEM_DOMAIN_VRAM,
-					      &psp->tmr_bo, &psp->tmr_mc_addr, pptr);
-	}
+	pptr = amdgpu_sriov_vf(psp->adev) ? &tmr_buf : NULL;
+	ret = amdgpu_bo_create_kernel(psp->adev, tmr_size, PSP_TMR_ALIGNMENT,
+				      AMDGPU_GEM_DOMAIN_VRAM,
+				      &psp->tmr_bo, &psp->tmr_mc_addr, pptr);
 
 	return ret;
 }
@@ -2736,6 +2732,8 @@ static int psp_suspend(void *handle)
 	}
 
 out:
+	psp_free_shared_bufs(psp);
+
 	return ret;
 }
 

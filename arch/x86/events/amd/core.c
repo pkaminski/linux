@@ -861,7 +861,8 @@ static int amd_pmu_handle_irq(struct pt_regs *regs)
 	pmu_enabled = cpuc->enabled;
 	cpuc->enabled = 0;
 
-	amd_brs_disable_all();
+	/* stop everything (includes BRS) */
+	amd_pmu_disable_all();
 
 	/* Drain BRS is in use (could be inactive) */
 	if (cpuc->lbr_users)
@@ -872,7 +873,7 @@ static int amd_pmu_handle_irq(struct pt_regs *regs)
 
 	cpuc->enabled = pmu_enabled;
 	if (pmu_enabled)
-		amd_brs_enable_all();
+		amd_pmu_enable_all(0);
 
 	return amd_pmu_adjust_nmi_window(handled);
 }

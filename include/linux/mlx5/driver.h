@@ -970,7 +970,7 @@ void mlx5_cmd_allowed_opcode(struct mlx5_core_dev *dev, u16 opcode);
 struct mlx5_async_ctx {
 	struct mlx5_core_dev *dev;
 	atomic_t num_inflight;
-	struct completion inflight_done;
+	struct wait_queue_head wait;
 };
 
 struct mlx5_async_work;
@@ -981,7 +981,6 @@ struct mlx5_async_work {
 	struct mlx5_async_ctx *ctx;
 	mlx5_async_cbk_t user_callback;
 	u16 opcode; /* cmd opcode */
-	u16 op_mod; /* cmd op_mod */
 	void *out; /* pointer to the cmd output buffer */
 };
 

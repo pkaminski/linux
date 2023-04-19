@@ -1233,9 +1233,6 @@ static u32 rtc_handler(void *context)
 
 static inline void rtc_wake_setup(struct device *dev)
 {
-	if (acpi_disabled)
-		return;
-
 	acpi_install_fixed_event_handler(ACPI_EVENT_RTC, rtc_handler, dev);
 	/*
 	 * After the RTC handler is installed, the Fixed_RTC event should
@@ -1289,6 +1286,7 @@ static void cmos_wake_setup(struct device *dev)
 
 	use_acpi_alarm_quirks();
 
+	rtc_wake_setup(dev);
 	acpi_rtc_info.wake_on = rtc_wake_on;
 	acpi_rtc_info.wake_off = rtc_wake_off;
 
@@ -1346,9 +1344,6 @@ static void cmos_check_acpi_rtc_status(struct device *dev,
 {
 }
 
-static void rtc_wake_setup(struct device *dev)
-{
-}
 #endif
 
 #ifdef	CONFIG_PNP
@@ -1358,8 +1353,6 @@ static void rtc_wake_setup(struct device *dev)
 static int cmos_pnp_probe(struct pnp_dev *pnp, const struct pnp_device_id *id)
 {
 	int irq, ret;
-
-	cmos_wake_setup(&pnp->dev);
 
 	if (pnp_port_start(pnp, 0) == 0x70 && !pnp_irq_valid(pnp, 0)) {
 		irq = 0;
@@ -1379,7 +1372,7 @@ static int cmos_pnp_probe(struct pnp_dev *pnp, const struct pnp_device_id *id)
 	if (ret)
 		return ret;
 
-	rtc_wake_setup(&pnp->dev);
+	cmos_wake_setup(&pnp->dev);
 
 	return 0;
 }
@@ -1468,7 +1461,6 @@ static int __init cmos_platform_probe(struct platform_device *pdev)
 	int irq, ret;
 
 	cmos_of_init(pdev);
-	cmos_wake_setup(&pdev->dev);
 
 	if (RTC_IOMAPPED)
 		resource = platform_get_resource(pdev, IORESOURCE_IO, 0);
@@ -1482,7 +1474,7 @@ static int __init cmos_platform_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	rtc_wake_setup(&pdev->dev);
+	cmos_wake_setup(&pdev->dev);
 
 	return 0;
 }

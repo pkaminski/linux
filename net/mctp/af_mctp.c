@@ -665,14 +665,12 @@ static __init int mctp_init(void)
 
 	rc = mctp_neigh_init();
 	if (rc)
-		goto err_unreg_routes;
+		goto err_unreg_proto;
 
 	mctp_device_init();
 
 	return 0;
 
-err_unreg_routes:
-	mctp_routes_exit();
 err_unreg_proto:
 	proto_unregister(&mctp_proto);
 err_unreg_sock:

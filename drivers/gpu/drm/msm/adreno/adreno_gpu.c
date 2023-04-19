@@ -729,12 +729,7 @@ static char *adreno_gpu_ascii85_encode(u32 *src, size_t len)
 	return buf;
 }
 
-/* len is expected to be in bytes
- *
- * WARNING: *ptr should be allocated with kvmalloc or friends.  It can be free'd
- * with kvfree() and replaced with a newly kvmalloc'd buffer on the first call
- * when the unencoded raw data is encoded
- */
+/* len is expected to be in bytes */
 void adreno_show_object(struct drm_printer *p, void **ptr, int len,
 		bool *encoded)
 {

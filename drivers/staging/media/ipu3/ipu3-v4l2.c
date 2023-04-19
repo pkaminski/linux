@@ -192,30 +192,33 @@ static int imgu_subdev_get_selection(struct v4l2_subdev *sd,
 				     struct v4l2_subdev_state *sd_state,
 				     struct v4l2_subdev_selection *sel)
 {
-	struct imgu_v4l2_subdev *imgu_sd =
-		container_of(sd, struct imgu_v4l2_subdev, subdev);
+	struct v4l2_rect *try_sel, *r;
+	struct imgu_v4l2_subdev *imgu_sd = container_of(sd,
+							struct imgu_v4l2_subdev,
+							subdev);
 
 	if (sel->pad != IMGU_NODE_IN)
 		return -EINVAL;
 
 	switch (sel->target) {
 	case V4L2_SEL_TGT_CROP:
-		if (sel->which == V4L2_SUBDEV_FORMAT_TRY)
-			sel->r = *v4l2_subdev_get_try_crop(sd, sd_state,
-							   sel->pad);
-		else
-			sel->r = imgu_sd->rect.eff;
-		return 0;
+		try_sel = v4l2_subdev_get_try_crop(sd, sd_state, sel->pad);
+		r = &imgu_sd->rect.eff;
+		break;
 	case V4L2_SEL_TGT_COMPOSE:
-		if (sel->which == V4L2_SUBDEV_FORMAT_TRY)
-			sel->r = *v4l2_subdev_get_try_compose(sd, sd_state,
-							      sel->pad);
-		else
-			sel->r = imgu_sd->rect.bds;
-		return 0;
+		try_sel = v4l2_subdev_get_try_compose(sd, sd_state, sel->pad);
+		r = &imgu_sd->rect.bds;
+		break;
 	default:
 		return -EINVAL;
 	}
+
+	if (sel->which == V4L2_SUBDEV_FORMAT_TRY)
+		sel->r = *try_sel;
+	else
+		sel->r = *r;
+
+	return 0;
 }
 
 static int imgu_subdev_set_selection(struct v4l2_subdev *sd,
@@ -483,7 +486,7 @@ static int imgu_vb2_start_streaming(struct vb2_queue *vq, unsigned int count)
 	pipe = node->pipe;
 	imgu_pipe = &imgu->imgu_pipe[pipe];
 	atomic_set(&node->sequence, 0);
-	r = video_device_pipeline_start(&node->vdev, &imgu_pipe->pipeline);
+	r = media_pipeline_start(&node->vdev.entity, &imgu_pipe->pipeline);
 	if (r < 0)
 		goto fail_return_bufs;
 
@@ -508,7 +511,7 @@ static int imgu_vb2_start_streaming(struct vb2_queue *vq, unsigned int count)
 	return 0;
 
 fail_stop_pipeline:
-	video_device_pipeline_stop(&node->vdev);
+	media_pipeline_stop(&node->vdev.entity);
 fail_return_bufs:
 	imgu_return_all_buffers(imgu, node, VB2_BUF_STATE_QUEUED);
 
@@ -548,7 +551,7 @@ static void imgu_vb2_stop_streaming(struct vb2_queue *vq)
 	imgu_return_all_buffers(imgu, node, VB2_BUF_STATE_ERROR);
 	mutex_unlock(&imgu->streaming_lock);
 
-	video_device_pipeline_stop(&node->vdev);
+	media_pipeline_stop(&node->vdev.entity);
 }
 
 /******************** v4l2_ioctl_ops ********************/

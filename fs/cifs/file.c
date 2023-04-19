@@ -1885,13 +1885,11 @@ int cifs_flock(struct file *file, int cmd, struct file_lock *fl)
 	struct cifsFileInfo *cfile;
 	__u32 type;
 
+	rc = -EACCES;
 	xid = get_xid();
 
-	if (!(fl->fl_flags & FL_FLOCK)) {
-		rc = -ENOLCK;
-		free_xid(xid);
-		return rc;
-	}
+	if (!(fl->fl_flags & FL_FLOCK))
+		return -ENOLCK;
 
 	cfile = (struct cifsFileInfo *)file->private_data;
 	tcon = tlink_tcon(cfile->tlink);
@@ -1910,9 +1908,8 @@ int cifs_flock(struct file *file, int cmd, struct file_lock *fl)
 		 * if no lock or unlock then nothing to do since we do not
 		 * know what it is
 		 */
-		rc = -EOPNOTSUPP;
 		free_xid(xid);
-		return rc;
+		return -EOPNOTSUPP;
 	}
 
 	rc = cifs_setlk(file, fl, type, wait_flag, posix_lck, lock, unlock,
@@ -2434,16 +2431,12 @@ cifs_writev_complete(struct work_struct *work)
 struct cifs_writedata *
 cifs_writedata_alloc(unsigned int nr_pages, work_func_t complete)
 {
-	struct cifs_writedata *writedata = NULL;
 	struct page **pages =
 		kcalloc(nr_pages, sizeof(struct page *), GFP_NOFS);
-	if (pages) {
-		writedata = cifs_writedata_direct_alloc(pages, complete);
-		if (!writedata)
-			kvfree(pages);
-	}
+	if (pages)
+		return cifs_writedata_direct_alloc(pages, complete);
 
-	return writedata;
+	return NULL;
 }
 
 struct cifs_writedata *
@@ -3303,9 +3296,6 @@ cifs_write_from_iter(loff_t offset, size_t len, struct iov_iter *from,
 					     cifs_uncached_writev_complete);
 			if (!wdata) {
 				rc = -ENOMEM;
-				for (i = 0; i < nr_pages; i++)
-					put_page(pagevec[i]);
-				kvfree(pagevec);
 				add_credits_and_wake_if(server, credits, 0);
 				break;
 			}

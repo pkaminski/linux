@@ -358,11 +358,9 @@ static int get_syms(char ***symsp, size_t *cntp)
 		 * We attach to almost all kernel functions and some of them
 		 * will cause 'suspicious RCU usage' when fprobe is attached
 		 * to them. Filter out the current culprits - arch_cpu_idle
-		 * default_idle and rcu_* functions.
+		 * and rcu_* functions.
 		 */
 		if (!strcmp(name, "arch_cpu_idle"))
-			continue;
-		if (!strcmp(name, "default_idle"))
 			continue;
 		if (!strncmp(name, "rcu_", 4))
 			continue;
@@ -402,7 +400,7 @@ error:
 	return err;
 }
 
-void serial_test_kprobe_multi_bench_attach(void)
+static void test_bench_attach(void)
 {
 	LIBBPF_OPTS(bpf_kprobe_multi_opts, opts);
 	struct kprobe_multi_empty *skel = NULL;
@@ -470,4 +468,6 @@ void test_kprobe_multi_test(void)
 		test_attach_api_syms();
 	if (test__start_subtest("attach_api_fails"))
 		test_attach_api_fails();
+	if (test__start_subtest("bench_attach"))
+		test_bench_attach();
 }

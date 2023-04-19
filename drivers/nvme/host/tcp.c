@@ -387,7 +387,7 @@ static inline void nvme_tcp_ddgst_update(struct ahash_request *hash,
 {
 	struct scatterlist sg;
 
-	sg_init_table(&sg, 1);
+	sg_init_marker(&sg, 1);
 	sg_set_page(&sg, page, len, off);
 	ahash_request_set_crypt(hash, &sg, NULL, len);
 	crypto_ahash_update(hash);
@@ -1141,7 +1141,6 @@ static int nvme_tcp_try_send_ddgst(struct nvme_tcp_request *req)
 static int nvme_tcp_try_send(struct nvme_tcp_queue *queue)
 {
 	struct nvme_tcp_request *req;
-	unsigned int noreclaim_flag;
 	int ret = 1;
 
 	if (!queue->request) {
@@ -1151,13 +1150,12 @@ static int nvme_tcp_try_send(struct nvme_tcp_queue *queue)
 	}
 	req = queue->request;
 
-	noreclaim_flag = memalloc_noreclaim_save();
 	if (req->state == NVME_TCP_SEND_CMD_PDU) {
 		ret = nvme_tcp_try_send_cmd_pdu(req);
 		if (ret <= 0)
 			goto done;
 		if (!nvme_tcp_has_inline_data(req))
-			goto out;
+			return ret;
 	}
 
 	if (req->state == NVME_TCP_SEND_H2C_PDU) {
@@ -1183,8 +1181,6 @@ done:
 		nvme_tcp_fail_request(queue->request);
 		nvme_tcp_done_send_req(queue);
 	}
-out:
-	memalloc_noreclaim_restore(noreclaim_flag);
 	return ret;
 }
 
@@ -1300,7 +1296,6 @@ static void nvme_tcp_free_queue(struct nvme_ctrl *nctrl, int qid)
 	struct page *page;
 	struct nvme_tcp_ctrl *ctrl = to_tcp_ctrl(nctrl);
 	struct nvme_tcp_queue *queue = &ctrl->queues[qid];
-	unsigned int noreclaim_flag;
 
 	if (!test_and_clear_bit(NVME_TCP_Q_ALLOCATED, &queue->flags))
 		return;
@@ -1313,11 +1308,7 @@ static void nvme_tcp_free_queue(struct nvme_ctrl *nctrl, int qid)
 		__page_frag_cache_drain(page, queue->pf_cache.pagecnt_bias);
 		queue->pf_cache.va = NULL;
 	}
-
-	noreclaim_flag = memalloc_noreclaim_save();
 	sock_release(queue->sock);
-	memalloc_noreclaim_restore(noreclaim_flag);
-
 	kfree(queue->pdu);
 	mutex_destroy(&queue->send_mutex);
 	mutex_destroy(&queue->queue_lock);

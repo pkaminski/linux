@@ -4200,40 +4200,6 @@ out:
 	return success;
 }
 
-static bool __task_needs_rq_lock(struct task_struct *p)
-{
-	unsigned int state = READ_ONCE(p->__state);
-
-	/*
-	 * Since pi->lock blocks try_to_wake_up(), we don't need rq->lock when
-	 * the task is blocked. Make sure to check @state since ttwu() can drop
-	 * locks at the end, see ttwu_queue_wakelist().
-	 */
-	if (state == TASK_RUNNING || state == TASK_WAKING)
-		return true;
-
-	/*
-	 * Ensure we load p->on_rq after p->__state, otherwise it would be
-	 * possible to, falsely, observe p->on_rq == 0.
-	 *
-	 * See try_to_wake_up() for a longer comment.
-	 */
-	smp_rmb();
-	if (p->on_rq)
-		return true;
-
-#ifdef CONFIG_SMP
-	/*
-	 * Ensure the task has finished __schedule() and will not be referenced
-	 * anymore. Again, see try_to_wake_up() for a longer comment.
-	 */
-	smp_rmb();
-	smp_cond_load_acquire(&p->on_cpu, !VAL);
-#endif
-
-	return false;
-}
-
 /**
  * task_call_func - Invoke a function on task in fixed state
  * @p: Process for which the function is to be invoked, can be @current.
@@ -4251,12 +4217,28 @@ static bool __task_needs_rq_lock(struct task_struct *p)
 int task_call_func(struct task_struct *p, task_call_f func, void *arg)
 {
 	struct rq *rq = NULL;
+	unsigned int state;
 	struct rq_flags rf;
 	int ret;
 
 	raw_spin_lock_irqsave(&p->pi_lock, rf.flags);
 
-	if (__task_needs_rq_lock(p))
+	state = READ_ONCE(p->__state);
+
+	/*
+	 * Ensure we load p->on_rq after p->__state, otherwise it would be
+	 * possible to, falsely, observe p->on_rq == 0.
+	 *
+	 * See try_to_wake_up() for a longer comment.
+	 */
+	smp_rmb();
+
+	/*
+	 * Since pi->lock blocks try_to_wake_up(), we don't need rq->lock when
+	 * the task is blocked. Make sure to check @state since ttwu() can drop
+	 * locks at the end, see ttwu_queue_wakelist().
+	 */
+	if (state == TASK_RUNNING || state == TASK_WAKING || p->on_rq)
 		rq = __task_rq_lock(p, &rf);
 
 	/*
@@ -4841,10 +4823,10 @@ static inline void finish_task(struct task_struct *prev)
 
 #ifdef CONFIG_SMP
 
-static void do_balance_callbacks(struct rq *rq, struct balance_callback *head)
+static void do_balance_callbacks(struct rq *rq, struct callback_head *head)
 {
 	void (*func)(struct rq *rq);
-	struct balance_callback *next;
+	struct callback_head *next;
 
 	lockdep_assert_rq_held(rq);
 
@@ -4871,15 +4853,15 @@ static void balance_push(struct rq *rq);
  * This abuse is tolerated because it places all the unlikely/odd cases behind
  * a single test, namely: rq->balance_callback == NULL.
  */
-struct balance_callback balance_push_callback = {
+struct callback_head balance_push_callback = {
 	.next = NULL,
-	.func = balance_push,
+	.func = (void (*)(struct callback_head *))balance_push,
 };
 
-static inline struct balance_callback *
+static inline struct callback_head *
 __splice_balance_callbacks(struct rq *rq, bool split)
 {
-	struct balance_callback *head = rq->balance_callback;
+	struct callback_head *head = rq->balance_callback;
 
 	if (likely(!head))
 		return NULL;
@@ -4901,7 +4883,7 @@ __splice_balance_callbacks(struct rq *rq, bool split)
 	return head;
 }
 
-static inline struct balance_callback *splice_balance_callbacks(struct rq *rq)
+static inline struct callback_head *splice_balance_callbacks(struct rq *rq)
 {
 	return __splice_balance_callbacks(rq, true);
 }
@@ -4911,7 +4893,7 @@ static void __balance_callbacks(struct rq *rq)
 	do_balance_callbacks(rq, __splice_balance_callbacks(rq, false));
 }
 
-static inline void balance_callbacks(struct rq *rq, struct balance_callback *head)
+static inline void balance_callbacks(struct rq *rq, struct callback_head *head)
 {
 	unsigned long flags;
 
@@ -4928,12 +4910,12 @@ static inline void __balance_callbacks(struct rq *rq)
 {
 }
 
-static inline struct balance_callback *splice_balance_callbacks(struct rq *rq)
+static inline struct callback_head *splice_balance_callbacks(struct rq *rq)
 {
 	return NULL;
 }
 
-static inline void balance_callbacks(struct rq *rq, struct balance_callback *head)
+static inline void balance_callbacks(struct rq *rq, struct callback_head *head)
 {
 }
 
@@ -6206,7 +6188,7 @@ static void sched_core_balance(struct rq *rq)
 	preempt_enable();
 }
 
-static DEFINE_PER_CPU(struct balance_callback, core_balance_head);
+static DEFINE_PER_CPU(struct callback_head, core_balance_head);
 
 static void queue_core_balance(struct rq *rq)
 {
@@ -7437,7 +7419,7 @@ static int __sched_setscheduler(struct task_struct *p,
 	int oldpolicy = -1, policy = attr->sched_policy;
 	int retval, oldprio, newprio, queued, running;
 	const struct sched_class *prev_class;
-	struct balance_callback *head;
+	struct callback_head *head;
 	struct rq_flags rf;
 	int reset_on_fork;
 	int queue_flags = DEQUEUE_SAVE | DEQUEUE_MOVE | DEQUEUE_NOCLOCK;
